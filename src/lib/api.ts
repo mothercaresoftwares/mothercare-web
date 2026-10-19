@@ -364,7 +364,7 @@ export const api = {
     apiRequest(`/admin/groups/${id}`, { method: 'DELETE' }),
 
   // ─── Students ────────────────────────────────────────────
-  getStudents: (params?: { search?: string; groupId?: string; academicYearId?: string; branchId?: string; rollNumber?: string; page?: number; limit?: number }) => {
+  getStudents: (params?: { search?: string; groupId?: string; academicYearId?: string; branchId?: string; rollNumber?: string; page?: number; limit?: number; status?: 'active' | 'inactive' | 'all' }) => {
     const q = buildScopeParams({
       search: params?.search,
       groupId: params?.groupId,
@@ -373,6 +373,9 @@ export const api = {
       rollNumber: params?.rollNumber,
       page: params?.page ? String(params.page) : undefined,
       limit: params?.limit ? String(params.limit) : undefined,
+      // Must be forwarded: the backend filters active vs inactive purely on
+      // this flag, and without it every list page gets the full mixed roster.
+      status: params?.status,
     });
     const qs = q.toString();
     return apiRequest<{ success: boolean; data: any[]; meta: any }>(`/admin/students${qs ? `?${qs}` : ''}`);
@@ -388,6 +391,7 @@ export const api = {
     studentEmail?: string; studentWhatsapp?: string; previousSchool?: string;
     previousClass?: string; tcNumber?: string; referredBy?: string;
     groupId?: string; admissionNumber?: string; profilePhotoId?: string;
+    academicYearId?: string; branchId?: string;
     guardianName?: string; guardianRelation?: string;
   }) => apiRequest('/admin/students', { method: 'POST', body: JSON.stringify(data) }),
 
@@ -396,6 +400,12 @@ export const api = {
 
   deleteStudent: (id: string) =>
     apiRequest(`/admin/students/${id}`, { method: 'DELETE' }),
+
+  deactivateStudent: (id: string) =>
+    apiRequest(`/admin/students/${id}/deactivate`, { method: 'POST' }),
+
+  reactivateStudent: (id: string) =>
+    apiRequest(`/admin/students/${id}/reactivate`, { method: 'POST' }),
 
   generateStudentCredentials: (id: string) =>
     apiRequest(`/admin/students/${id}/generate-credentials`, { method: 'PUT' }),

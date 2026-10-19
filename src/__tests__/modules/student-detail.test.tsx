@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '../helpers/test-utils';
+import { render, screen, waitFor } from '../helpers/test-utils';
 import userEvent from '@testing-library/user-event';
 
 const mockGetStudent = vi.hoisted(() => vi.fn());
@@ -7,6 +7,7 @@ const mockGetSectionSubjects = vi.hoisted(() => vi.fn());
 const mockGetStudentSchoolTenures = vi.hoisted(() => vi.fn());
 const mockGetSections = vi.hoisted(() => vi.fn());
 const mockUpdateStudent = vi.hoisted(() => vi.fn());
+const mockDeactivateStudent = vi.hoisted(() => vi.fn());
 const mockPush = vi.hoisted(() => vi.fn());
 const mockApiRequest = vi.hoisted(() => vi.fn());
 
@@ -23,6 +24,7 @@ vi.mock('@/lib/api', () => ({
     getSectionSubjects: mockGetSectionSubjects,
     getStudentSchoolTenures: mockGetStudentSchoolTenures,
     getSections: mockGetSections,
+    deactivateStudent: mockDeactivateStudent,
   },
   apiRequest: mockApiRequest,
 }));
@@ -319,5 +321,42 @@ describe('StudentDetailPage — parent save endpoint', () => {
       '/admin/students/s-1/emergency-contact',
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+});
+
+describe('StudentDetailPage — deactivate (replaces direct delete)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetStudent.mockResolvedValue({ success: true, data: baseStudent });
+    mockGetSectionSubjects.mockResolvedValue({ success: true, data: mockSubjects });
+    mockGetStudentSchoolTenures.mockResolvedValue({ data: [] });
+    mockGetSections.mockResolvedValue({ success: true, data: [] });
+    mockDeactivateStudent.mockResolvedValue({ success: true });
+  });
+
+  it('active student shows a Deactivate button (no direct Delete)', async () => {
+    render(<StudentDetailPage />);
+    expect(await screen.findByRole('button', { name: /deactivate student/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /delete student/i })).not.toBeInTheDocument();
+  });
+
+  it('deactivate calls the deactivate endpoint', async () => {
+    const user = userEvent.setup();
+    render(<StudentDetailPage />);
+    await user.click(await screen.findByRole('button', { name: /deactivate student/i }));
+    // Confirmation now goes through the custom modal, not window.confirm.
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent(/deactivate/i);
+    expect(mockDeactivateStudent).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Deactivate' }));
+    await waitFor(() => expect(mockDeactivateStudent).toHaveBeenCalledWith('s-1'));
+  });
+
+  it('withdrawn student shows guidance instead of a delete action', async () => {
+    mockGetStudent.mockResolvedValue({ success: true, data: { ...baseStudent, status: 'WITHDRAWN' } });
+    render(<StudentDetailPage />);
+    expect(await screen.findByText(/deactivated page/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /deactivate student/i })).not.toBeInTheDocument();
   });
 });

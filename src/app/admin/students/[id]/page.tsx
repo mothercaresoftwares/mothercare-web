@@ -31,6 +31,12 @@ export default function StudentDetailPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const photoInputRef = React.useRef<HTMLInputElement>(null);
   const [ecList, setEcList] = useState<any[]>([]);
+  const [confirm, setConfirm] = useState<{
+    open: boolean; title: string; message: string;
+    variant: 'danger' | 'warning' | 'default';
+    confirmLabel: string; action: () => Promise<void>;
+  }>({ open: false, title: '', message: '', variant: 'warning', confirmLabel: 'Deactivate', action: async () => {} });
+
   const [statusReason, setStatusReason] = useState('');
   const [statusLogs, setStatusLogs] = useState<any[]>([]);
   const [changingStatus, setChangingStatus] = useState(false);
@@ -38,7 +44,6 @@ export default function StudentDetailPage() {
   const [studentTenureReason, setStudentTenureReason] = useState('WITHDRAWN');
   const [studentTenureNote, setStudentTenureNote] = useState('');
   const [movementGroupId, setMovementGroupId] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const branchId = typeof window !== 'undefined' ? localStorage.getItem('activeBranchId') : null;
 
@@ -219,12 +224,22 @@ export default function StudentDetailPage() {
     finally { setChangingStatus(false); }
   };
 
-  const handleDelete = async () => {
-    try {
-      const res = await apiRequest(`/admin/students/${id}`, { method: 'DELETE' });
-      if (res.success) { showToast('success', res.message); router.push('/admin/students'); }
-      else showToast('error', res.message || 'Failed');
-    } catch (e: any) { showToast('error', e.message); }
+  const handleDeactivate = () => {
+    if (!s || s.status !== 'ACTIVE') return;
+    setConfirm({
+      open: true,
+      title: `Deactivate "${s.name}"?`,
+      message: `Their status becomes WITHDRAWN and login is disabled. Records are preserved — reactivate anytime from the Deactivated page.`,
+      variant: 'warning',
+      confirmLabel: 'Deactivate',
+      action: async () => {
+        try {
+          const res = await api.deactivateStudent(id);
+          if (res.success) { showToast('success', `"${s.name}" deactivated`); loadData(); }
+          else showToast('error', res.message || 'Failed');
+        } catch (e: any) { showToast('error', e.message || 'Failed'); }
+      },
+    });
   };
 
   const handleDrawerSaved = () => {
@@ -499,11 +514,14 @@ export default function StudentDetailPage() {
           )}
 
           <div className="mt-4 border-t border-warm-card-border pt-4 flex justify-end">
-            <button onClick={() => setShowDeleteConfirm(true)} className="rounded-lg border border-red-900/30 px-4 py-2 text-xs text-red-400 hover:bg-red-900/10 transition-colors">
-              Delete Student
-            </button>
-          </div>
-        </div>
+            {s.status === 'ACTIVE' ? (
+              <button onClick={handleDeactivate} className="rounded-lg border border-red-900/30 px-4 py-2 text-xs text-red-400 hover:bg-red-900/10 transition-colors">
+                Deactivate Student
+              </button>
+            ) : (
+              <span className="text-[11px] text-warm-muted/50">Deactivated — reactivate from the Deactivated page</span>
+            )}
+          </div>        </div>
       </section>
 
       {/* ══════ 9: Login Credentials ══════ */}
@@ -694,24 +712,22 @@ export default function StudentDetailPage() {
         </div>
       )}
 
-      {/* Delete confirm */}
-      <ConfirmModal
-        open={showDeleteConfirm}
-        title="Delete student"
-        message={`Delete ${s.name}? This cannot be undone.`}
-        variant="danger"
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        onConfirm={async () => { await handleDelete(); setShowDeleteConfirm(false); }}
-        onCancel={() => setShowDeleteConfirm(false)}
-      />
-
       <CredentialDrawer
         person={drawerPerson}
         open={drawerOpen}
         onClose={closeCredentialDrawer}
         triggerRef={credentialTriggerRef}
         onSaved={handleDrawerSaved}
+      />
+
+      <ConfirmModal
+        open={confirm.open}
+        title={confirm.title}
+        message={confirm.message}
+        variant={confirm.variant}
+        confirmLabel={confirm.confirmLabel}
+        onConfirm={async () => { await confirm.action(); setConfirm(prev => ({ ...prev, open: false })); }}
+        onCancel={() => setConfirm(prev => ({ ...prev, open: false }))}
       />
     </main>
   );

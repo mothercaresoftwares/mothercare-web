@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '../helpers/test-utils';
+import userEvent from '@testing-library/user-event';
 
 const mockGetStudents = vi.hoisted(() => vi.fn());
 const mockGetSections = vi.hoisted(() => vi.fn());
+const mockDeactivateStudent = vi.hoisted(() => vi.fn());
 const mockPush = vi.hoisted(() => vi.fn());
 
 vi.mock('next/navigation', () => ({
@@ -14,6 +16,7 @@ vi.mock('@/lib/api', () => ({
   api: {
     getStudents: mockGetStudents,
     getSections: mockGetSections,
+    deactivateStudent: mockDeactivateStudent,
   },
 }));
 
@@ -124,5 +127,67 @@ describe('StudentsPage — navigation', () => {
     render(<StudentsPage />);
     expect(await screen.findByText('Roll: 012')).toBeInTheDocument();
     expect(await screen.findByText('Roll: 008')).toBeInTheDocument();
+  });
+});
+
+describe('StudentsPage — deactivate flow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetStudents.mockImplementation((params: any) => {
+      if (params?.status === 'inactive') {
+        return Promise.resolve({ success: true, data: [], meta: { total: 2 } });
+      }
+      return Promise.resolve({ success: true, data: mockStudents, meta: { total: 3 } });
+    });
+    mockGetSections.mockResolvedValue({ success: true, data: [] });
+    mockDeactivateStudent.mockResolvedValue({ success: true });
+  });
+
+  it('requests active students by default', async () => {
+    render(<StudentsPage />);
+    await screen.findByText('Ali Hassan');
+    expect(mockGetStudents).toHaveBeenCalledWith(expect.objectContaining({ status: 'active' }));
+  });
+
+  it('shows the Deactivated button with the inactive count badge', async () => {
+    render(<StudentsPage />);
+    const btn = await screen.findByRole('button', { name: /deactivated/i });
+    expect(btn).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+  });
+
+  it('Deactivated button navigates to the deactivated page', async () => {
+    const user = userEvent.setup();
+    render(<StudentsPage />);
+    await screen.findByText('Ali Hassan');
+    await user.click(screen.getByRole('button', { name: /deactivated/i }));
+    expect(mockPush).toHaveBeenCalledWith('/admin/students/deactivated');
+  });
+
+  it('hides the count badge when nobody is deactivated', async () => {
+    mockGetStudents.mockImplementation((params: any) => {
+      if (params?.status === 'inactive') {
+        return Promise.resolve({ success: true, data: [], meta: { total: 0 } });
+      }
+      return Promise.resolve({ success: true, data: mockStudents, meta: { total: 3 } });
+    });
+    render(<StudentsPage />);
+    await screen.findByText('Ali Hassan');
+    expect(screen.queryByRole('button', { name: /2/ })).not.toBeInTheDocument();
+  });
+
+  it('deactivates a student from the card button', async () => {
+    const user = userEvent.setup();
+    render(<StudentsPage />);
+    await screen.findByText('Ali Hassan');
+
+    await user.click(screen.getAllByTitle('Deactivate student')[0]);
+    // Confirmation now goes through the custom modal, not window.confirm.
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Deactivate "Ali Hassan"?');
+    expect(mockDeactivateStudent).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Deactivate' }));
+    await waitFor(() => expect(mockDeactivateStudent).toHaveBeenCalledWith('s-1'));
   });
 });

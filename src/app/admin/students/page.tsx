@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Plus, Users, GraduationCap, BookOpen, Search, Filter, Printer } from 'lucide-react';
+import { Plus, Users, GraduationCap, BookOpen, Search, Filter, Printer, UserX } from 'lucide-react';
+import { showToast } from '@/components/toast';
+import ConfirmModal from '@/components/confirm-modal';
 
 export default function StudentsPage() {
   const router = useRouter();
@@ -13,6 +15,12 @@ export default function StudentsPage() {
   const [groupId, setGroupId] = useState('');
   const [rollNumber, setRollNumber] = useState('');
   const [sections, setSections] = useState<any[]>([]);
+  const [inactiveCount, setInactiveCount] = useState(0);
+  const [confirm, setConfirm] = useState<{
+    open: boolean; title: string; message: string;
+    variant: 'danger' | 'warning' | 'default';
+    confirmLabel: string; action: () => Promise<void>;
+  }>({ open: false, title: '', message: '', variant: 'default', confirmLabel: 'Confirm', action: async () => {} });
 
   const branchId = typeof window !== 'undefined' ? localStorage.getItem('activeBranchId') : null;
   const ayId = typeof window !== 'undefined' ? localStorage.getItem('activeAYId') : null;
@@ -25,18 +33,45 @@ export default function StudentsPage() {
         groupId: groupId || undefined,
         rollNumber: rollNumber || undefined,
         limit: -1,
+        status: 'active',
       });
       if (res.success) setStudents(res.data);
     } catch {} finally { setLoading(false); }
   };
 
-  useEffect(() => { loadStudents(); }, [groupId, rollNumber]);
+  const loadInactiveCount = () => {
+    api.getStudents({ status: 'inactive', limit: 1 }).then(d => {
+      if (d.success) setInactiveCount(d.meta?.total ?? 0);
+    }).catch(() => {});
+  };
+
+  useEffect(() => { loadStudents(); loadInactiveCount(); }, [groupId, rollNumber]);
 
   useEffect(() => {
     if (branchId && ayId) {
       api.getSections(branchId, ayId).then(d => { if (d.success) setSections(d.data); }).catch(() => {});
     }
   }, []);
+
+  const promptDeactivate = (student: any) => {
+    setConfirm({
+      open: true,
+      title: `Deactivate "${student.name}"?`,
+      message: `Their status becomes WITHDRAWN and login is disabled. Records are preserved — they can be reactivated later from the Deactivated page.`,
+      variant: 'warning',
+      confirmLabel: 'Deactivate',
+      action: async () => {
+        try {
+          await api.deactivateStudent(student.id);
+          showToast('success', `"${student.name}" deactivated`);
+          loadStudents();
+          loadInactiveCount();
+        } catch (e: any) {
+          showToast('error', e.message || 'Failed to deactivate');
+        }
+      },
+    });
+  };
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10">
@@ -49,6 +84,16 @@ export default function StudentsPage() {
           <button onClick={() => router.push('/admin/students/admission-form')}
             className="flex items-center gap-1.5 rounded-lg border border-warm-card-border px-4 py-2 text-xs text-warm-muted hover:text-warm-cream transition-colors">
             <Printer size={14} /> Print Admission Form
+          </button>
+          <button onClick={() => router.push('/admin/students/deactivated')}
+            className="flex items-center gap-1.5 rounded-lg border border-warm-card-border px-4 py-2 text-sm text-warm-muted hover:text-warm-cream transition-colors"
+            title="View deactivated students">
+            <UserX size={15} /> Deactivated
+            {inactiveCount > 0 && (
+              <span className="rounded-full bg-warm-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-warm-accent">
+                {inactiveCount}
+              </span>
+            )}
           </button>
           <button onClick={() => router.push('/admin/students/new')}
             className="flex items-center gap-1.5 rounded-lg bg-warm-accent px-4 py-2 text-xs font-medium text-[#1a1614] hover:bg-[#b39a76] transition-colors">
@@ -98,7 +143,14 @@ export default function StudentsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {students.map(student => (
             <div key={student.id} onClick={() => router.push(`/admin/students/${student.id}`)}
-              className="rounded-xl border border-warm-card-border bg-warm-card p-4 cursor-pointer hover:border-warm-accent/40 transition-colors">
+              className="group relative rounded-xl border border-warm-card-border bg-warm-card p-4 cursor-pointer hover:border-warm-accent/40 transition-colors">
+              <button
+                onClick={(e) => { e.stopPropagation(); promptDeactivate(student); }}
+                className="absolute right-3 top-3 rounded-lg p-1.5 text-warm-muted opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-warm-card-border/30 transition-all"
+                title="Deactivate student"
+              >
+                <UserX size={14} />
+              </button>
               <div className="flex items-center gap-3 mb-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-warm-accent/10">
                   <GraduationCap size={18} className="text-warm-accent" />
@@ -126,6 +178,16 @@ export default function StudentsPage() {
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        open={confirm.open}
+        title={confirm.title}
+        message={confirm.message}
+        variant={confirm.variant}
+        confirmLabel={confirm.confirmLabel}
+        onConfirm={async () => { await confirm.action(); setConfirm(prev => ({ ...prev, open: false })); }}
+        onCancel={() => setConfirm(prev => ({ ...prev, open: false }))}
+      />
     </main>
   );
 }

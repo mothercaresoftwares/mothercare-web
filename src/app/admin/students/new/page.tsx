@@ -61,6 +61,10 @@ export default function NewStudentPage() {
     }
     setSaving(true);
     try {
+      // Read the scope at submit time so it is always the branch/year the
+      // admin currently has selected.
+      const activeBranchId = localStorage.getItem('activeBranchId');
+      const activeAYId = localStorage.getItem('activeAYId');
       const res = await api.createStudent({
         name: form.name.trim(), gender: form.gender || undefined,
         dateOfBirth: form.dateOfBirth || undefined, bloodGroup: form.bloodGroup || undefined,
@@ -73,6 +77,10 @@ export default function NewStudentPage() {
         previousSchool: form.previousSchool || undefined, previousClass: form.previousClass || undefined,
         tcNumber: form.tcNumber || undefined, referredBy: form.referredBy || undefined,
         groupId: form.groupId || undefined, profilePhotoId: form.profilePhotoId || undefined,
+        // Send the branch + academic year the admin is working in, so the
+        // student is created under the same scope the list is filtered by.
+        academicYearId: activeAYId || undefined,
+        branchId: activeBranchId || undefined,
         guardianName: form.guardianName || undefined,
         guardianRelation: form.guardianRelation || undefined,
       });

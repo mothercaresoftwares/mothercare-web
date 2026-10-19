@@ -83,10 +83,11 @@ describe('StudentDetailPage — Status Management', () => {
     await screen.findByPlaceholderText(/Reason/);
   });
 
-  it('shows Delete Student button', async () => {
+  it('shows Deactivate Student button (delete lives on the Deactivated page)', async () => {
     render(<StudentDetailPage />);
     await screen.findByText('Student Status');
-    expect(screen.getByText('Delete Student')).toBeTruthy();
+    expect(screen.getByText('Deactivate Student')).toBeTruthy();
+    expect(screen.queryByText('Delete Student')).toBeNull();
   });
 
   it('shows Login Credentials section', async () => {
