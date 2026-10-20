@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Plus, UserPlus, Search, X, Edit3, Trash2, ExternalLink, Shield, HardHat,
+  Plus, UserPlus, Search, X, Edit3, Trash2, ExternalLink, Shield, HardHat, UserX,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import config from '@/config';
@@ -79,8 +79,9 @@ export default function StaffPage() {
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [inactiveCount, setInactiveCount] = useState(0);
 
   const [showCreate, setShowCreate] = useState(false);
   const [showWorker, setShowWorker] = useState(false);
@@ -108,7 +109,8 @@ export default function StaffPage() {
     setLoading(true);
     api.getStaffList({
       search: search.trim() || undefined,
-      status: statusFilter === 'all' ? undefined : statusFilter,
+      // 'all' is sent explicitly — an omitted status means "active only" server-side.
+      status: statusFilter,
     })
       .then((r) => {
         let list = r.data || [];
@@ -118,6 +120,10 @@ export default function StaffPage() {
       })
       .catch((e) => showToast('error', e.message))
       .finally(() => setLoading(false));
+
+    api.getStaffList({ status: 'inactive' })
+      .then((d) => setInactiveCount(d.meta?.total ?? 0))
+      .catch(() => {});
   }, [search, statusFilter, roleFilter]);
 
   useEffect(() => { load(); }, [load]);
@@ -307,6 +313,19 @@ export default function StaffPage() {
           <p className="text-sm text-warm-muted">Manage staff accounts and module access.</p>
         </div>
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => router.push('/admin/staff/deactivated')}
+            className="flex items-center gap-1.5 rounded-lg border border-warm-card-border px-4 py-2 text-sm text-warm-muted transition-colors hover:text-warm-cream"
+            title="View deactivated staff"
+          >
+            <UserX size={15} /> Deactivated
+            {inactiveCount > 0 && (
+              <span className="rounded-full bg-warm-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-warm-accent">
+                {inactiveCount}
+              </span>
+            )}
+          </button>
           <button
             type="button"
             onClick={() => { resetWorker(); setShowWorker(true); }}

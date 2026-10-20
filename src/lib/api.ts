@@ -1329,6 +1329,9 @@ export const api = {
   reactivateStaffMember: (userId: string) =>
     apiRequest(`/admin/staff/${userId}/reactivate${scopeQuery()}`, { method: 'POST' }),
 
+  deleteStaffMember: (userId: string) =>
+    apiRequest(`/admin/staff/${userId}${scopeQuery()}`, { method: 'DELETE' }),
+
 
   getBranchMemberTenures: (branchMemberId: string) =>
     apiRequest<ApiJsonResult<any[]>>(`/admin/branch-members/${branchMemberId}/tenures${scopeQuery()}`),

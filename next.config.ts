@@ -1,6 +1,24 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  /* ── Dev Origins ──────────────────────────────── */
+  /* Next.js blocks cross-origin requests to dev-only assets and endpoints by
+     default. When the dev server is opened from the LAN address, the machine
+     hostname, or a tunnel, those requests are rejected and the React Flight
+     client fails with "Cannot read properties of null (reading 'enqueueModel')".
+     Only the hostname is matched — no scheme, no port. */
+  allowedDevOrigins: [
+    '127.0.0.1',
+    '0.0.0.0',
+    '192.168.0.107',
+    'hasan-Latitude-E6430',
+    '*.local',
+    '*.ngrok-free.dev',
+    '*.ngrok.app',
+    '*.trycloudflare.com',
+    '*.loca.lt',
+  ],
+
   /* ── Server ──────────────────────────────────── */
   serverExternalPackages: ['dotenv'],
 
