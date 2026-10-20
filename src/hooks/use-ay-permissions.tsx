@@ -14,23 +14,36 @@ import {
 type AyPermissionsContextValue = {
   staffAccess: StaffAccess | null;
   ayStatus: string | null;
+  /**
+   * The academic year the admin is currently working in, or null while the
+   * layout is still resolving it. List pages scope their requests by this id,
+   * so exposing it lets them refetch when the year is switched (or arrives
+   * late) instead of reading a stale value out of localStorage.
+   */
+  academicYearId: string | null;
 };
 
 export const AyPermissionsContext = createContext<AyPermissionsContextValue>({
   staffAccess: null,
   ayStatus: null,
+  academicYearId: null,
 });
 
 export function AyPermissionsProvider({
   children,
   staffAccess,
   ayStatus,
+  academicYearId,
 }: {
   children: React.ReactNode;
   staffAccess: StaffAccess | null;
   ayStatus: string | null;
+  academicYearId?: string | null;
 }) {
-  const value = useMemo(() => ({ staffAccess, ayStatus }), [staffAccess, ayStatus]);
+  const value = useMemo(
+    () => ({ staffAccess, ayStatus, academicYearId: academicYearId ?? null }),
+    [staffAccess, ayStatus, academicYearId],
+  );
   return (
     <AyPermissionsContext.Provider value={value}>
       {children}

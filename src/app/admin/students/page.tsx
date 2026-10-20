@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
-import { Plus, Users, GraduationCap, BookOpen, Search, Filter, Printer, UserX } from 'lucide-react';
+import { Plus, Users, GraduationCap, BookOpen, Search, Filter, Printer, UserX, AlertTriangle } from 'lucide-react';
 import { showToast } from '@/components/toast';
 import ConfirmModal from '@/components/confirm-modal';
+import { AyPermissionsContext } from '@/hooks/use-ay-permissions';
 
 export default function StudentsPage() {
   const router = useRouter();
+  const { academicYearId } = useContext(AyPermissionsContext);
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -16,6 +18,7 @@ export default function StudentsPage() {
   const [rollNumber, setRollNumber] = useState('');
   const [sections, setSections] = useState<any[]>([]);
   const [inactiveCount, setInactiveCount] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{
     open: boolean; title: string; message: string;
     variant: 'danger' | 'warning' | 'default';
@@ -23,10 +26,10 @@ export default function StudentsPage() {
   }>({ open: false, title: '', message: '', variant: 'default', confirmLabel: 'Confirm', action: async () => {} });
 
   const branchId = typeof window !== 'undefined' ? localStorage.getItem('activeBranchId') : null;
-  const ayId = typeof window !== 'undefined' ? localStorage.getItem('activeAYId') : null;
 
   const loadStudents = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await api.getStudents({
         search: search || undefined,
@@ -35,8 +38,15 @@ export default function StudentsPage() {
         limit: -1,
         status: 'active',
       });
-      if (res.success) setStudents(res.data);
-    } catch {} finally { setLoading(false); }
+      if (res.success) setStudents(res.data || []);
+      else setLoadError(res.message || 'Could not load students.');
+    } catch (e: unknown) {
+      // Never swallow this: a silent failure here looks exactly like an empty
+      // roster, which is far more confusing than a visible error.
+      const msg = e instanceof Error ? e.message : 'Could not load students.';
+      setLoadError(msg);
+      showToast('error', msg);
+    } finally { setLoading(false); }
   };
 
   const loadInactiveCount = () => {
@@ -45,13 +55,17 @@ export default function StudentsPage() {
     }).catch(() => {});
   };
 
-  useEffect(() => { loadStudents(); loadInactiveCount(); }, [groupId, rollNumber]);
+  // academicYearId is a dependency on purpose: the list is scoped by the
+  // selected year, and the admin layout resolves that year asynchronously.
+  // Listing it here means the roster refetches once the year arrives (or is
+  // switched) instead of staying empty.
+  useEffect(() => { loadStudents(); loadInactiveCount(); }, [groupId, rollNumber, academicYearId]);
 
   useEffect(() => {
-    if (branchId && ayId) {
-      api.getSections(branchId, ayId).then(d => { if (d.success) setSections(d.data); }).catch(() => {});
+    if (branchId && academicYearId) {
+      api.getSections(branchId, academicYearId).then(d => { if (d.success) setSections(d.data); }).catch(() => {});
     }
-  }, []);
+  }, [branchId, academicYearId]);
 
   const promptDeactivate = (student: any) => {
     setConfirm({
@@ -130,7 +144,21 @@ export default function StudentsPage() {
         </button>
       </div>
 
-      {loading ? (
+      {loadError ? (
+        <div className="rounded-xl border border-red-900/40 bg-red-900/10 p-6 text-center">
+          <AlertTriangle size={28} className="mx-auto mb-3 text-red-400" />
+          <p className="text-sm text-red-300">{loadError}</p>
+          <p className="mt-1 text-xs text-warm-muted">
+            The student list could not be loaded. This is not an empty roster.
+          </p>
+          <button
+            onClick={loadStudents}
+            className="mt-4 rounded-lg border border-warm-card-border px-4 py-2 text-xs text-warm-muted transition-colors hover:text-warm-cream"
+          >
+            Try again
+          </button>
+        </div>
+      ) : loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1,2,3].map(i => <div key={i} className="h-28 animate-pulse rounded-xl bg-warm-card" />)}
         </div>

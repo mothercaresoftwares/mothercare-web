@@ -257,6 +257,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const ayProviderProps = {
     staffAccess,
     ayStatus: activeAY?.status ?? null,
+    academicYearId: activeAYId,
   };
 
   if (staffAccess?.isRestricted && !loadingPermissions) {
@@ -460,7 +461,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
       </div>
 
-      <AyPermissionsProvider staffAccess={staffAccess} ayStatus={activeAY?.status ?? null}>
+      <AyPermissionsProvider staffAccess={staffAccess} ayStatus={activeAY?.status ?? null} academicYearId={activeAYId}>
         {children}
       </AyPermissionsProvider>
       {activeAY?.status === 'BUILD_STAGE' && (

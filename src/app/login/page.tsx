@@ -30,6 +30,34 @@ async function resolveAdminLanding(token: string): Promise<string> {
   return '/admin';
 }
 
+/**
+ * Persist the branch + academic year this session works in.
+ *
+ * Every admin list is scoped by these two ids, and the backend refuses a
+ * request whose academic year does not belong to the branch. The academic year
+ * used to be resolved asynchronously by the admin layout, so the first request
+ * of a freshly logged-in session went out without it and came back 400 —
+ * which the list pages swallowed, leaving an empty roster. Resolving it here
+ * makes the scope available before the first page renders.
+ */
+async function resolveActiveScope(token: string): Promise<void> {
+  try {
+    const payload = decodeJwtPayload(token);
+    const branchId = payload?.branchIds?.[0];
+    if (!branchId) return;
+    localStorage.setItem('activeBranchId', branchId);
+    const res = await api.getAcademicYears(branchId);
+    const years = res.data || [];
+    const active = years.find((y: any) => y.status === 'ACTIVE') || years[0];
+    if (active?.id) {
+      localStorage.setItem('activeAYId', active.id);
+      if (active.status) localStorage.setItem('activeAYStatus', active.status);
+    }
+  } catch {
+    /* the admin layout resolves the scope in the background if this fails */
+  }
+}
+
 export function mapLoginErrorMessage(msg: string): string {
   const lower = msg.toLowerCase();
   if (lower.includes('disabled after graduation')) {
@@ -104,15 +132,19 @@ export default function LoginPage() {
     try {
       const payload = decodeJwtPayload(token);
       if (payload) {
-        const landing = defaultLandingForRole(payload.role);
-        if (landing === '/admin') {
-          resolveAdminLanding(token).then((path) => router.replace(path));
-        } else {
-          if (landing === '/teacher' && payload.branchIds?.[0]) {
-            localStorage.setItem('activeBranchId', payload.branchIds[0]);
+        // A previous session may have left the scope half-resolved (logout
+        // clears it), so restore it before handing over to the portal.
+        resolveActiveScope(token).then(() => {
+          const landing = defaultLandingForRole(payload.role);
+          if (landing === '/admin') {
+            resolveAdminLanding(token).then((path) => router.replace(path));
+          } else {
+            if (landing === '/teacher' && payload.branchIds?.[0]) {
+              localStorage.setItem('activeBranchId', payload.branchIds[0]);
+            }
+            router.replace(landing);
           }
-          router.replace(landing);
-        }
+        });
         return;
       }
     } catch {
@@ -136,6 +168,9 @@ export default function LoginPage() {
       if (data.success && data.token) {
         localStorage.setItem('token', data.token);
         document.cookie = `token=${data.token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+
+        // Resolve the branch + academic year before the first page renders.
+        await resolveActiveScope(data.token);
 
         const params = new URLSearchParams(window.location.search);
         const redirect = sanitizePostLoginRedirect(params.get('redirect'));

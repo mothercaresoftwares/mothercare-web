@@ -378,7 +378,7 @@ export const api = {
       status: params?.status,
     });
     const qs = q.toString();
-    return apiRequest<{ success: boolean; data: any[]; meta: any }>(`/admin/students${qs ? `?${qs}` : ''}`);
+    return apiRequest<{ success: boolean; data: any[]; meta: any; message?: string }>(`/admin/students${qs ? `?${qs}` : ''}`);
   },
 
   getStudent: (id: string) =>

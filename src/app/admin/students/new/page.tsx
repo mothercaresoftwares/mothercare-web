@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { ArrowLeft, Upload } from 'lucide-react';
 import { showToast } from '@/components/toast';
 import FileUpload from '@/components/file-upload';
+import { AyPermissionsContext } from '@/hooks/use-ay-permissions';
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -28,6 +29,7 @@ function Input({ value, onChange, placeholder, type = 'text', step }: {
 
 export default function NewStudentPage() {
   const router = useRouter();
+  const { academicYearId } = useContext(AyPermissionsContext);
   const [saving, setSaving] = useState(false);
   const [sections, setSections] = useState<any[]>([]);
   const [form, setForm] = useState({
@@ -40,13 +42,26 @@ export default function NewStudentPage() {
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+  // The class list is scoped by the academic year, so it has to be reloaded
+  // whenever the year changes. Loading it once left the dropdown offering
+  // classes from the previous year, and a student created into one of those
+  // is invisible in the list (the list is filtered by the current year).
   useEffect(() => {
     const bId = localStorage.getItem('activeBranchId');
-    const aId = localStorage.getItem('activeAYId');
-    if (bId && aId) {
-      api.getSections(bId, aId).then(d => { if (d.success) setSections(d.data); }).catch(() => {});
-    }
-  }, []);
+    // The context is the live source of truth, but it is null until the admin
+    // layout resolves the year — fall back to the stored one so the class
+    // dropdown is never empty on the first paint.
+    const aId = academicYearId || localStorage.getItem('activeAYId');
+    if (!bId || !aId) return;
+    api.getSections(bId, aId)
+      .then(d => {
+        if (d.success) {
+          setSections(d.data);
+          setForm((p) => (d.data?.some((s: any) => s.id === p.groupId) ? p : { ...p, groupId: '' }));
+        }
+      })
+      .catch(() => {});
+  }, [academicYearId]);
 
   const set = (key: string) => (val: any) => setForm((p: any) => ({ ...p, [key]: val }));
 
