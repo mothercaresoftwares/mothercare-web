@@ -27,6 +27,9 @@ function Input({ value, onChange, placeholder, type = 'text', step }: {
   );
 }
 
+const LANGUAGES = ['Urdu', 'Sindhi', 'Punjabi', 'Pashto', 'English'];
+const OTHER_TONGUE = '__other__';
+
 export default function NewStudentPage() {
   const router = useRouter();
   const { academicYearId } = useContext(AyPermissionsContext);
@@ -41,6 +44,9 @@ export default function NewStudentPage() {
     guardianName: '', guardianRelation: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  // "Other" on the mother-tongue list swaps the dropdown for a free text
+  // field, since the intake list can never be exhaustive.
+  const [customTongue, setCustomTongue] = useState(false);
   // One key per mounted form: every submit attempt of the same filled form
   // carries the SAME idempotency key, so a retry after a failed or lost
   // response converges server-side on the first admission instead of
@@ -176,7 +182,32 @@ export default function NewStudentPage() {
                 <Input value={form.nationality} onChange={set('nationality')} placeholder="e.g. Pakistani" />
               </Field>
               <Field label="Mother Tongue">
-                <Input value={form.motherTongue} onChange={set('motherTongue')} placeholder="e.g. Urdu" />
+                {customTongue ? (
+                  <div className="space-y-1">
+                    <Input value={form.motherTongue} onChange={set('motherTongue')} placeholder="e.g. Saraiki" />
+                    <button type="button"
+                      onClick={() => { setCustomTongue(false); setForm(p => ({ ...p, motherTongue: '' })); }}
+                      className="text-xs text-warm-muted underline hover:text-warm-cream transition-colors">
+                      choose from list instead
+                    </button>
+                  </div>
+                ) : (
+                  <select value={LANGUAGES.includes(form.motherTongue) ? form.motherTongue : ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === OTHER_TONGUE) {
+                        setCustomTongue(true);
+                        setForm(p => ({ ...p, motherTongue: '' }));
+                      } else {
+                        set('motherTongue')(v);
+                      }
+                    }}
+                    className="w-full rounded-lg border border-warm-card-border bg-[#1a1614] px-3 py-2 text-sm text-warm-cream outline-none focus:border-warm-accent transition-colors">
+                    <option value="">— Select —</option>
+                    {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
+                    <option value={OTHER_TONGUE}>Other</option>
+                  </select>
+                )}
               </Field>
             </div>
             <Field label="B-Form / CNIC">
