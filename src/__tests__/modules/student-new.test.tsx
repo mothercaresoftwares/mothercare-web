@@ -147,3 +147,63 @@ describe('NewStudentPage — validation', () => {
     });
   });
 });
+
+describe('NewStudentPage — idempotency key', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSections.mockResolvedValue({ success: true, data: [{ id: 'g-1', name: 'Class 5', section: 'A' }] });
+  });
+
+  async function fillAndSubmit() {
+    const nameInput = await screen.findByPlaceholderText('e.g. Ali Hassan');
+    fireEvent.change(nameInput, { target: { value: 'Test Student' } });
+    const classOption = await screen.findByRole('option', { name: 'Class 5 — A' });
+    const classSelect = classOption.parentElement as HTMLSelectElement;
+    fireEvent.change(classSelect, { target: { value: 'g-1' } });
+    fireEvent.click(screen.getByText('Create Student'));
+  }
+
+  it('sends a non-empty idempotency key', async () => {
+    mockCreateStudent.mockResolvedValue({ success: true, data: { id: 's-1' } });
+    render(<NewStudentPage />);
+    await fillAndSubmit();
+    await waitFor(() => {
+      expect(mockCreateStudent).toHaveBeenCalled();
+    });
+    const payload = mockCreateStudent.mock.calls[0][0];
+    expect(typeof payload.idempotencyKey).toBe('string');
+    expect(payload.idempotencyKey.length).toBeGreaterThan(0);
+  });
+
+  it('a failed submit retried on the same form reuses the same key', async () => {
+    // Retry after a lost/timed-out response must converge server-side on
+    // the first committed admission — never a second student.
+    mockCreateStudent
+      .mockRejectedValueOnce(new Error('Request failed (status)'))
+      .mockResolvedValueOnce({ success: true, data: { id: 's-1' } });
+    render(<NewStudentPage />);
+    await fillAndSubmit();
+    await waitFor(() => expect(mockCreateStudent).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByText('Create Student'));
+    await waitFor(() => expect(mockCreateStudent).toHaveBeenCalledTimes(2));
+    const first = mockCreateStudent.mock.calls[0][0].idempotencyKey;
+    const second = mockCreateStudent.mock.calls[1][0].idempotencyKey;
+    expect(first).toBeTruthy();
+    expect(second).toBe(first);
+  });
+
+  it('a successful create clears the key so the next filling starts fresh', async () => {
+    mockCreateStudent
+      .mockResolvedValueOnce({ success: true, data: { id: 's-1' } })
+      .mockResolvedValueOnce({ success: true, data: { id: 's-2' } });
+    render(<NewStudentPage />);
+    await fillAndSubmit();
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/admin/students/s-1'));
+    await fillAndSubmit();
+    await waitFor(() => expect(mockCreateStudent).toHaveBeenCalledTimes(2));
+    const first = mockCreateStudent.mock.calls[0][0].idempotencyKey;
+    const second = mockCreateStudent.mock.calls[1][0].idempotencyKey;
+    expect(second).toBeTruthy();
+    expect(second).not.toBe(first);
+  });
+});

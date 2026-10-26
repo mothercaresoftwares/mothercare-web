@@ -393,6 +393,7 @@ export const api = {
     groupId?: string; admissionNumber?: string; profilePhotoId?: string;
     academicYearId?: string; branchId?: string;
     guardianName?: string; guardianRelation?: string;
+    idempotencyKey?: string;
   }) => apiRequest('/admin/students', { method: 'POST', body: JSON.stringify(data) }),
 
   updateStudent: (id: string, data: any) =>

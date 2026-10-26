@@ -1,6 +1,6 @@
 'use client';
 
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { ArrowLeft, Upload } from 'lucide-react';
@@ -41,6 +41,21 @@ export default function NewStudentPage() {
     guardianName: '', guardianRelation: '',
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  // One key per mounted form: every submit attempt of the same filled form
+  // carries the SAME idempotency key, so a retry after a failed or lost
+  // response converges server-side on the first admission instead of
+  // creating a second student. A fresh key is issued on the next mount
+  // (returning to the form) — that is a genuinely new logical student.
+  const idempotencyKeyRef = useRef<string | null>(null);
+  const getIdemKey = () => {
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+    return idempotencyKeyRef.current;
+  };
 
   // The class list is scoped by the academic year, so it has to be reloaded
   // whenever the year changes. Loading it once left the dropdown offering
@@ -98,9 +113,13 @@ export default function NewStudentPage() {
         branchId: activeBranchId || undefined,
         guardianName: form.guardianName || undefined,
         guardianRelation: form.guardianRelation || undefined,
+        idempotencyKey: getIdemKey(),
       });
       if (res.success) {
         showToast('success', 'Student created');
+        // The attempt concluded — a next fill of this form must not claim
+        // the same logical student.
+        idempotencyKeyRef.current = null;
         router.push(`/admin/students/${res.data.id}`);
       }
     } catch (e: any) { showToast('error', e.message || 'Failed to create'); }
