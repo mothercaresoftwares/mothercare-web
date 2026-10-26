@@ -33,9 +33,9 @@ export default function NewStudentPage() {
   const [saving, setSaving] = useState(false);
   const [sections, setSections] = useState<any[]>([]);
   const [form, setForm] = useState({
-    name: '', gender: '', dateOfBirth: '', bloodGroup: '', religion: '', nationality: 'Pakistani',
-    motherTongue: '', bformCnic: '', phone: '', studentEmail: '', studentWhatsapp: '',
-    address: '', city: '', postalCode: '', country: '',
+    name: '', gender: '', dateOfBirth: '', bloodGroup: '', religion: 'Islam', nationality: 'Pakistani',
+    motherTongue: '', bformCnic: '', phone: '+92 ', studentEmail: '', studentWhatsapp: '+92 ',
+    address: '', city: 'Islamabad', postalCode: '45740', country: 'Pakistan',
     previousSchool: '', previousClass: '', tcNumber: '', referredBy: '',
     groupId: '', profilePhotoId: '',
     guardianName: '', guardianRelation: '',
